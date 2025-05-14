@@ -2,23 +2,43 @@ version: '3.8'
 
 services:
   snakebox-tracker:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: snakebox-tracker
+    restart: unless-stopped
     env_file:
       - .env
     environment:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHANNEL_ID=${TELEGRAM_CHANNEL_ID}
-    command: [ "--gift-name", "SnakeBox", "--monitor", "--find-latest" ]
+    command: [ "python", "src/main.py", "--gift-name", "SnakeBox", "--monitor", "--find-latest", "--respect-saved" ]
     volumes:
-      - ./data:/app/app/data
+      - ./data:/app/data # For state persistence
+      - ./snakebox_images:/app/nft_images # For downloaded images
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   bondedring-tracker:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bondedring-tracker
+    restart: unless-stopped
     env_file:
       - .env
     environment:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHANNEL_ID=${TELEGRAM_CHANNEL_ID}
-    command: [ "--gift-name", "BondedRing", "--monitor", "--find-latest" ]
+    command: [ "python", "src/main.py", "--gift-name", "BondedRing", "--monitor", "--find-latest", "--respect-saved" ]
     volumes:
-      - ./data:/app/app/data
+      - ./data:/app/data # For state persistence
+      - ./bondedring_images:/app/nft_images # For downloaded images
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

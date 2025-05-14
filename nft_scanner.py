@@ -630,20 +630,11 @@ class NFTScanner:
 
                 # Send notifications for found NFTs
                 if batch_nfts:
-                    # Compose message with all NFT links
-                    if len(batch_nfts) == 1:
-                        # For a single NFT, include detailed information
-                        nft = batch_nfts[0]
-                        # Escape HTML special characters in the name
-                        safe_name = (
-                            nft["name"]
-                            .replace("&", "&amp;")
-                            .replace("<", "&lt;")
-                            .replace(">", "&gt;")
-                        )
-
-                        # Check if any property has rarity < 0.6%
+                    # Find any super rare NFTs first
+                    any_super_rare = False
+                    for nft in batch_nfts:
                         is_super_rare = False
+                        super_rare_properties = []
                         if nft.get("rarity"):
                             for prop, info in nft["rarity"].items():
                                 if info.get("rarity"):
@@ -657,237 +648,275 @@ class NFTScanner:
                                         rarity_value = float(rarity_text)
                                         if rarity_value < 0.6:
                                             is_super_rare = True
-                                            break
+                                            any_super_rare = True
+                                            super_rare_properties.append(
+                                                f"{prop}: {info['value']} ({info['rarity']})"
+                                            )
                                     except (ValueError, TypeError):
                                         pass
+                        nft["is_super_rare"] = is_super_rare
+                        nft["super_rare_properties"] = super_rare_properties
 
                         # Add super_rare tag if applicable
-                        super_rare_tag = " #super_rare" if is_super_rare else ""
+                        super_rare_tag = ""
+                        if nft["is_super_rare"]:
+                            super_rare_tag = " #super_rare"
+                            # Add which properties triggered super_rare
+                            if nft["super_rare_properties"]:
+                                super_rare_tag += f" (Ultra rare: {', '.join(nft['super_rare_properties'])})"
 
-                        message = (
-                            f"<b>New NFT found:</b>\n"
-                            f"<a href='https://t.me/nft/{nft['gift_name']}-{nft['id']}'>"
-                            f"<code>{safe_name}</code> {nft['full_id']}</a>{super_rare_tag}"
-                        )
-
-                        # Add rarity information if available
-                        if nft.get("rarity"):
-                            message += "\n\n<b>Rarity Information:</b>"
-                            for prop, info in nft["rarity"].items():
-                                # Escape property values as well
-                                safe_value = (
-                                    info["value"]
+                        # Only proceed with notification if at least one NFT is super rare
+                        if any_super_rare:
+                            # Compose message with all NFT links
+                            if len(batch_nfts) == 1:
+                                # For a single NFT, include detailed information
+                                nft = batch_nfts[0]
+                                # Escape HTML special characters in the name
+                                safe_name = (
+                                    nft["name"]
                                     .replace("&", "&amp;")
                                     .replace("<", "&lt;")
                                     .replace(">", "&gt;")
                                 )
-                                rarity_str = (
-                                    f" ({info['rarity']})" if info["rarity"] else ""
+
+                                # Add super_rare tag if applicable
+                                super_rare_tag = (
+                                    " #super_rare" if nft["is_super_rare"] else ""
                                 )
-                                message += (
-                                    f"\n• {prop}: <code>{safe_value}</code>{rarity_str}"
+
+                                message = (
+                                    f"<b>New NFT found:</b>\n"
+                                    f"<a href='https://t.me/nft/{nft['gift_name']}-{nft['id']}'>"
+                                    f"<code>{safe_name}</code> {nft['full_id']}</a>{super_rare_tag}"
                                 )
-                    else:
-                        # For multiple NFTs, just use links with escaped names
-                        links = []
-                        for nft in batch_nfts:
-                            safe_name = (
-                                nft["name"]
-                                .replace("&", "&amp;")
-                                .replace("<", "&lt;")
-                                .replace(">", "&gt;")
-                            )
 
-                            # Check if any property has rarity < 0.6%
-                            is_super_rare = False
-                            if nft.get("rarity"):
-                                for prop, info in nft["rarity"].items():
-                                    if info.get("rarity"):
-                                        try:
-                                            rarity_text = (
-                                                info["rarity"]
-                                                .strip()
-                                                .replace("%", "")
-                                                .replace(",", ".")
-                                            )
-                                            rarity_value = float(rarity_text)
-                                            if rarity_value < 0.6:
-                                                is_super_rare = True
-                                                break
-                                        except (ValueError, TypeError):
-                                            pass
-
-                            # Add super_rare tag if applicable
-                            super_rare_tag = " #super_rare" if is_super_rare else ""
-
-                            links.append(
-                                f"<a href='https://t.me/nft/{nft['gift_name']}-{nft['id']}'>"
-                                f"<code>{safe_name}</code> {nft['full_id']}</a>{super_rare_tag}"
-                            )
-                        message = "<b>New NFTs found:</b>\n" + "\n".join(links)
-
-                    await self.notifier.send_message(message)
-
-                    # Filter for Model == 'Neo Matrix' and Model rarity <= 2.1%
-                    filtered_nfts = []
-                    for nft in batch_nfts:
-                        try:
-                            # Get rarity info in a more robust way
-                            model_info = nft.get("rarity", {}).get("Model", {})
-                            model_name = model_info.get("value", "")
-                            model_rarity = model_info.get("rarity", "100%")
-
-                            # Clean and parse the rarity value
-                            rarity_text = (
-                                model_rarity.strip().replace("%", "").replace(",", ".")
-                            )
-                            if rarity_text:
-                                rarity_value = float(rarity_text)
+                                # Add rarity information if available
+                                if nft.get("rarity"):
+                                    message += "\n\n<b>Rarity Information:</b>"
+                                    for prop, info in nft["rarity"].items():
+                                        # Escape property values as well
+                                        safe_value = (
+                                            info["value"]
+                                            .replace("&", "&amp;")
+                                            .replace("<", "&lt;")
+                                            .replace(">", "&gt;")
+                                        )
+                                        rarity_str = (
+                                            f" ({info['rarity']})"
+                                            if info["rarity"]
+                                            else ""
+                                        )
+                                        message += f"\n• {prop}: <code>{safe_value}</code>{rarity_str}"
                             else:
-                                rarity_value = 100.0
+                                # For multiple NFTs, just use links with escaped names
+                                links = []
+                                for nft in batch_nfts:
+                                    if not nft["is_super_rare"]:
+                                        continue  # Skip non-super rare NFTs
 
-                            # Check if this is a Neo Matrix model with required rarity
-                            if (
-                                model_name == "Neo Matrix"
-                                and rarity_value <= 2.1
-                                and nft["image_type"] == "tgs"
-                            ):
-                                filtered_nfts.append(nft)
-                                logger.info(
-                                    f"Found qualifying Neo Matrix NFT with rarity {rarity_value}%"
-                                )
-                        except Exception as e:
-                            logger.error(
-                                f"Error processing rarity for NFT {nft['id']}: {str(e)}"
-                            )
-                            continue
+                                    safe_name = (
+                                        nft["name"]
+                                        .replace("&", "&amp;")
+                                        .replace("<", "&lt;")
+                                        .replace(">", "&gt;")
+                                    )
 
-                    # Prepare media group for Telegram (must be file_id or attach:// for new uploads)
-                    if filtered_nfts:
-                        logger.info(
-                            f"Found {len(filtered_nfts)} NFTs that match Neo Matrix filtering criteria"
-                        )
-                        try:
-                            # First download all stickers
-                            media = []
-                            files = {}
+                                    # Add super_rare tag with specific properties
+                                    super_rare_tag = " #super_rare"
+                                    if nft["super_rare_properties"]:
+                                        super_rare_tag += f" (Ultra rare: {', '.join(nft['super_rare_properties'])})"
 
-                            for idx, nft in enumerate(filtered_nfts):
+                                    links.append(
+                                        f"<a href='https://t.me/nft/{nft['gift_name']}-{nft['id']}'>"
+                                        f"<code>{safe_name}</code> {nft['full_id']}</a>{super_rare_tag}"
+                                    )
+
+                                if links:  # Only create message if we have links after filtering
+                                    message = "<b>New NFTs found:</b>\n" + "\n".join(
+                                        links
+                                    )
+                                else:
+                                    message = None  # No super rare NFTs to report
+
+                            if message:
+                                await self.notifier.send_message(message)
+
+                            # Filter for Model == 'Neo Matrix' and Model rarity <= 2.1%
+                            filtered_nfts = []
+                            for nft in batch_nfts:
                                 try:
-                                    image_url = nft["image_url"]
-                                    async with httpx.AsyncClient() as client:
-                                        resp = await client.get(image_url)
-                                        if resp.status_code == 200:
-                                            attach_name = f"file{idx}.tgs"
-                                            files[attach_name] = resp.content
+                                    # Get rarity info in a more robust way
+                                    model_info = nft.get("rarity", {}).get("Model", {})
+                                    model_name = model_info.get("value", "")
+                                    model_rarity = model_info.get("rarity", "100%")
 
-                                            # Get model info safely
-                                            model_info = nft.get("rarity", {}).get(
-                                                "Model", {}
-                                            )
-                                            model_name = model_info.get("value", "")
-                                            model_rarity = model_info.get(
-                                                "rarity", "100%"
-                                            )
+                                    # Clean and parse the rarity value
+                                    rarity_text = (
+                                        model_rarity.strip()
+                                        .replace("%", "")
+                                        .replace(",", ".")
+                                    )
+                                    if rarity_text:
+                                        rarity_value = float(rarity_text)
+                                    else:
+                                        rarity_value = 100.0
 
-                                            # Create safe caption without potentially problematic characters
-                                            caption = f"{nft['name']} {nft['full_id']}\nModel: {model_name}"
-                                            if model_rarity:
-                                                caption += f" (Rarity: {model_rarity})"
-
-                                            media.append(
-                                                {
-                                                    "type": "document",
-                                                    "media": f"attach://{attach_name}",
-                                                    "caption": caption,
-                                                }
-                                            )
+                                    # Check if this is a Neo Matrix model with required rarity
+                                    if (
+                                        model_name == "Neo Matrix"
+                                        and rarity_value <= 2.1
+                                        and nft["image_type"] == "tgs"
+                                    ):
+                                        filtered_nfts.append(nft)
+                                        logger.info(
+                                            f"Found qualifying Neo Matrix NFT with rarity {rarity_value}%"
+                                        )
                                 except Exception as e:
                                     logger.error(
-                                        f"Error preparing media for NFT {nft['id']}: {str(e)}"
+                                        f"Error processing rarity for NFT {nft['id']}: {str(e)}"
                                     )
+                                continue
 
-                            # Now send the media
-                            if media:
+                            # Prepare media group for Telegram (must be file_id or attach:// for new uploads)
+                            if filtered_nfts:
                                 logger.info(
-                                    f"Sending {len(media)} Neo Matrix NFTs to Telegram"
+                                    f"Found {len(filtered_nfts)} NFTs that match Neo Matrix filtering criteria"
                                 )
-                                if len(media) == 1:
-                                    # For single documents, use sendDocument
-                                    attach_name = "file0.tgs"
-                                    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument"
-                                    data = {
-                                        "chat_id": CHANNEL_ID,
-                                        "caption": media[0]["caption"],
-                                        "parse_mode": "HTML",
-                                    }
-                                    files_payload = {
-                                        "document": (
-                                            attach_name,
-                                            files[attach_name],
-                                            "application/x-tgsticker",
-                                        )
-                                    }
-                                    async with httpx.AsyncClient() as client:
-                                        resp = await client.post(
-                                            url, data=data, files=files_payload
-                                        )
-                                        logger.info(
-                                            f"Telegram sendDocument status: {resp.status_code}, response: {resp.text}"
-                                        )
-                                else:
-                                    # For multiple documents, use sendMediaGroup
-                                    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMediaGroup"
-                                    data = {
-                                        "chat_id": CHANNEL_ID,
-                                        "media": json.dumps(media),
-                                    }
-                                    files_payload = {
-                                        name: (name, content, "application/x-tgsticker")
-                                        for name, content in files.items()
-                                    }
-                                    async with httpx.AsyncClient() as client:
-                                        resp = await client.post(
-                                            url, data=data, files=files_payload
-                                        )
-                                        logger.info(
-                                            f"Telegram sendMediaGroup status: {resp.status_code}, response: {resp.text}"
-                                        )
-                        except Exception as e:
-                            logger.error(f"Error sending media group: {str(e)}")
-                            # Try to send one by one if group send fails
-                            logger.info("Attempting to send documents one by one...")
-                            for idx, nft in enumerate(filtered_nfts):
                                 try:
-                                    attach_name = f"file{idx}.tgs"
-                                    if attach_name in files:
-                                        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument"
-                                        data = {
-                                            "chat_id": CHANNEL_ID,
-                                            "caption": f"{nft['name']} {nft['full_id']}",
-                                            "parse_mode": "HTML",
-                                        }
-                                        file_payload = {
-                                            "document": (
-                                                attach_name,
-                                                files[attach_name],
-                                                "application/x-tgsticker",
+                                    # First download all stickers
+                                    media = []
+                                    files = {}
+
+                                    for idx, nft in enumerate(filtered_nfts):
+                                        try:
+                                            image_url = nft["image_url"]
+                                            async with httpx.AsyncClient() as client:
+                                                resp = await client.get(image_url)
+                                                if resp.status_code == 200:
+                                                    attach_name = f"file{idx}.tgs"
+                                                    files[attach_name] = resp.content
+
+                                                    # Get model info safely
+                                                    model_info = nft.get(
+                                                        "rarity", {}
+                                                    ).get("Model", {})
+                                                    model_name = model_info.get(
+                                                        "value", ""
+                                                    )
+                                                    model_rarity = model_info.get(
+                                                        "rarity", "100%"
+                                                    )
+
+                                                    # Create safe caption without potentially problematic characters
+                                                    caption = f"{nft['name']} {nft['full_id']}\nModel: {model_name}"
+                                                    if model_rarity:
+                                                        caption += (
+                                                            f" (Rarity: {model_rarity})"
+                                                        )
+
+                                                    media.append(
+                                                        {
+                                                            "type": "document",
+                                                            "media": f"attach://{attach_name}",
+                                                            "caption": caption,
+                                                        }
+                                                    )
+                                        except Exception as e:
+                                            logger.error(
+                                                f"Error preparing media for NFT {nft['id']}: {str(e)}"
                                             )
-                                        }
-                                        async with httpx.AsyncClient() as client:
-                                            resp = await client.post(
-                                                url, data=data, files=file_payload
-                                            )
-                                            logger.info(
-                                                f"Individual document send status: {resp.status_code}"
-                                            )
-                                        await asyncio.sleep(
-                                            1
-                                        )  # Short delay between sends
-                                except Exception as inner_e:
-                                    logger.error(
-                                        f"Failed to send individual document: {str(inner_e)}"
+
+                                    # Now send the media
+                                    if media:
+                                        logger.info(
+                                            f"Sending {len(media)} Neo Matrix NFTs to Telegram"
+                                        )
+                                        if len(media) == 1:
+                                            # For single documents, use sendDocument
+                                            attach_name = "file0.tgs"
+                                            url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument"
+                                            data = {
+                                                "chat_id": CHANNEL_ID,
+                                                "caption": media[0]["caption"],
+                                                "parse_mode": "HTML",
+                                            }
+                                            files_payload = {
+                                                "document": (
+                                                    attach_name,
+                                                    files[attach_name],
+                                                    "application/x-tgsticker",
+                                                )
+                                            }
+                                            async with httpx.AsyncClient() as client:
+                                                resp = await client.post(
+                                                    url, data=data, files=files_payload
+                                                )
+                                                logger.info(
+                                                    f"Telegram sendDocument status: {resp.status_code}, response: {resp.text}"
+                                                )
+                                        else:
+                                            # For multiple documents, use sendMediaGroup
+                                            url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMediaGroup"
+                                            data = {
+                                                "chat_id": CHANNEL_ID,
+                                                "media": json.dumps(media),
+                                            }
+                                            files_payload = {
+                                                name: (
+                                                    name,
+                                                    content,
+                                                    "application/x-tgsticker",
+                                                )
+                                                for name, content in files.items()
+                                            }
+                                            async with httpx.AsyncClient() as client:
+                                                resp = await client.post(
+                                                    url, data=data, files=files_payload
+                                                )
+                                                logger.info(
+                                                    f"Telegram sendMediaGroup status: {resp.status_code}, response: {resp.text}"
+                                                )
+                                except Exception as e:
+                                    logger.error(f"Error sending media group: {str(e)}")
+                                    # Try to send one by one if group send fails
+                                    logger.info(
+                                        "Attempting to send documents one by one..."
                                     )
+                                    for idx, nft in enumerate(filtered_nfts):
+                                        try:
+                                            attach_name = f"file{idx}.tgs"
+                                            if attach_name in files:
+                                                url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument"
+                                                data = {
+                                                    "chat_id": CHANNEL_ID,
+                                                    "caption": f"{nft['name']} {nft['full_id']}",
+                                                    "parse_mode": "HTML",
+                                                }
+                                                file_payload = {
+                                                    "document": (
+                                                        attach_name,
+                                                        files[attach_name],
+                                                        "application/x-tgsticker",
+                                                    )
+                                                }
+                                                async with (
+                                                    httpx.AsyncClient() as client
+                                                ):
+                                                    resp = await client.post(
+                                                        url,
+                                                        data=data,
+                                                        files=file_payload,
+                                                    )
+                                                    logger.info(
+                                                        f"Individual document send status: {resp.status_code}"
+                                                    )
+                                                await asyncio.sleep(
+                                                    1
+                                                )  # Short delay between sends
+                                        except Exception as inner_e:
+                                            logger.error(
+                                                f"Failed to send individual document: {str(inner_e)}"
+                                            )
                 else:
                     # Slow down polling if nothing is found to avoid hammering the server
                     logger.info(

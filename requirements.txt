@@ -1,4 +1,4 @@
+aiohttp>=3.8.4
 beautifulsoup4>=4.12.2
-httpx 
-aiohttp
 environs>=9.5.0
+httpx>=0.24.1
