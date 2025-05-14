@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  snakebox-tracker:
+    build: .
+    env_file:
+      - .env
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHANNEL_ID=${TELEGRAM_CHANNEL_ID}
+    command: [ "--gift-name", "SnakeBox", "--monitor", "--find-latest" ]
+    volumes:
+      - ./data:/app/data
+
+  bondedring-tracker:
+    build: .
+    env_file:
+      - .env
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHANNEL_ID=${TELEGRAM_CHANNEL_ID}
+    command: [ "--gift-name", "BondedRing", "--monitor", "--find-latest" ]
+    volumes:
+      - ./data:/app/data
