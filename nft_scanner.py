@@ -641,10 +641,33 @@ class NFTScanner:
                             .replace("<", "&lt;")
                             .replace(">", "&gt;")
                         )
+
+                        # Check if any property has rarity < 0.6%
+                        is_super_rare = False
+                        if nft.get("rarity"):
+                            for prop, info in nft["rarity"].items():
+                                if info.get("rarity"):
+                                    try:
+                                        rarity_text = (
+                                            info["rarity"]
+                                            .strip()
+                                            .replace("%", "")
+                                            .replace(",", ".")
+                                        )
+                                        rarity_value = float(rarity_text)
+                                        if rarity_value < 0.6:
+                                            is_super_rare = True
+                                            break
+                                    except (ValueError, TypeError):
+                                        pass
+
+                        # Add super_rare tag if applicable
+                        super_rare_tag = " #super_rare" if is_super_rare else ""
+
                         message = (
                             f"<b>New NFT found:</b>\n"
                             f"<a href='https://t.me/nft/{nft['gift_name']}-{nft['id']}'>"
-                            f"<code>{safe_name}</code> {nft['full_id']}</a>"
+                            f"<code>{safe_name}</code> {nft['full_id']}</a>{super_rare_tag}"
                         )
 
                         # Add rarity information if available
@@ -674,9 +697,32 @@ class NFTScanner:
                                 .replace("<", "&lt;")
                                 .replace(">", "&gt;")
                             )
+
+                            # Check if any property has rarity < 0.6%
+                            is_super_rare = False
+                            if nft.get("rarity"):
+                                for prop, info in nft["rarity"].items():
+                                    if info.get("rarity"):
+                                        try:
+                                            rarity_text = (
+                                                info["rarity"]
+                                                .strip()
+                                                .replace("%", "")
+                                                .replace(",", ".")
+                                            )
+                                            rarity_value = float(rarity_text)
+                                            if rarity_value < 0.6:
+                                                is_super_rare = True
+                                                break
+                                        except (ValueError, TypeError):
+                                            pass
+
+                            # Add super_rare tag if applicable
+                            super_rare_tag = " #super_rare" if is_super_rare else ""
+
                             links.append(
                                 f"<a href='https://t.me/nft/{nft['gift_name']}-{nft['id']}'>"
-                                f"<code>{safe_name}</code> {nft['full_id']}</a>"
+                                f"<code>{safe_name}</code> {nft['full_id']}</a>{super_rare_tag}"
                             )
                         message = "<b>New NFTs found:</b>\n" + "\n".join(links)
 
