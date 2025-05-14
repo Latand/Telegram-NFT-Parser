@@ -8,6 +8,7 @@ from collections import deque
 import time
 import httpx
 import json
+from environs import Env
 
 from bs4 import BeautifulSoup
 from aiohttp import ClientSession, ClientTimeout
@@ -18,13 +19,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger("nft-scanner")
 
+# Load environment variables from .env file
+env = Env()
+env.read_env()
+
 # Telegram configuration from environment
-BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-CHANNEL_ID = os.environ.get("TELEGRAM_CHANNEL_ID")
+BOT_TOKEN = env.str("TELEGRAM_BOT_TOKEN")
+CHANNEL_ID = env.str("TELEGRAM_CHANNEL_ID")
 
 if not BOT_TOKEN or not CHANNEL_ID:
     raise RuntimeError(
-        "Please set TELEGRAM_BOT_TOKEN and TELEGRAM_CHANNEL_ID as environment variables."
+        "Please set TELEGRAM_BOT_TOKEN and TELEGRAM_CHANNEL_ID in the .env file."
     )
 
 
@@ -104,7 +109,7 @@ class NFTScanner:
         # Use absolute path to ensure files are stored in a consistent location
         # Use a path that will be persisted in Docker by mounting a volume
         self.data_dir = (
-            "/app/data"  # This directory should be mounted as a volume in Docker
+            "./app/data"  # This directory should be mounted as a volume in Docker
         )
         os.makedirs(self.data_dir, exist_ok=True)
         self.last_id_file = os.path.join(
@@ -626,11 +631,55 @@ class NFTScanner:
                 # Send notifications for found NFTs
                 if batch_nfts:
                     # Compose message with all NFT links
-                    links = [
-                        f"<a href='https://t.me/nft/{nft['gift_name']}-{nft['id']}'>{nft['name']} {nft['full_id']}</a>"
-                        for nft in batch_nfts
-                    ]
-                    message = "<b>New NFTs found:</b>\n" + "\n".join(links)
+                    if len(batch_nfts) == 1:
+                        # For a single NFT, include detailed information
+                        nft = batch_nfts[0]
+                        # Escape HTML special characters in the name
+                        safe_name = (
+                            nft["name"]
+                            .replace("&", "&amp;")
+                            .replace("<", "&lt;")
+                            .replace(">", "&gt;")
+                        )
+                        message = (
+                            f"<b>New NFT found:</b>\n"
+                            f"<a href='https://t.me/nft/{nft['gift_name']}-{nft['id']}'>"
+                            f"<code>{safe_name}</code> {nft['full_id']}</a>"
+                        )
+
+                        # Add rarity information if available
+                        if nft.get("rarity"):
+                            message += "\n\n<b>Rarity Information:</b>"
+                            for prop, info in nft["rarity"].items():
+                                # Escape property values as well
+                                safe_value = (
+                                    info["value"]
+                                    .replace("&", "&amp;")
+                                    .replace("<", "&lt;")
+                                    .replace(">", "&gt;")
+                                )
+                                rarity_str = (
+                                    f" ({info['rarity']})" if info["rarity"] else ""
+                                )
+                                message += (
+                                    f"\n• {prop}: <code>{safe_value}</code>{rarity_str}"
+                                )
+                    else:
+                        # For multiple NFTs, just use links with escaped names
+                        links = []
+                        for nft in batch_nfts:
+                            safe_name = (
+                                nft["name"]
+                                .replace("&", "&amp;")
+                                .replace("<", "&lt;")
+                                .replace(">", "&gt;")
+                            )
+                            links.append(
+                                f"<a href='https://t.me/nft/{nft['gift_name']}-{nft['id']}'>"
+                                f"<code>{safe_name}</code> {nft['full_id']}</a>"
+                            )
+                        message = "<b>New NFTs found:</b>\n" + "\n".join(links)
+
                     await self.notifier.send_message(message)
 
                     # Filter for Model == 'Neo Matrix' and Model rarity <= 2.1%

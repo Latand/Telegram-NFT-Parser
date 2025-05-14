@@ -10,7 +10,7 @@ services:
       - TELEGRAM_CHANNEL_ID=${TELEGRAM_CHANNEL_ID}
     command: [ "--gift-name", "SnakeBox", "--monitor", "--find-latest" ]
     volumes:
-      - ./data:/app/data
+      - ./data:/app/app/data
 
   bondedring-tracker:
     build: .
@@ -21,4 +21,4 @@ services:
       - TELEGRAM_CHANNEL_ID=${TELEGRAM_CHANNEL_ID}
     command: [ "--gift-name", "BondedRing", "--monitor", "--find-latest" ]
     volumes:
-      - ./data:/app/data
+      - ./data:/app/app/data
